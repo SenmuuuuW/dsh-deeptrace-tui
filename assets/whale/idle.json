@@ -1,0 +1,41 @@
+{
+  "name": "idle",
+  "w": 16,
+  "h": 24,
+  "palette": {
+    "d": "#0A1220",
+    "b": "#4D6BFE",
+    "l": "#7B9BE8",
+    "f": "#DBE4FF",
+    "r": "#FFB4C8",
+    "e": "#101828",
+    "w": "#FFFFFF",
+    "t": "#6FE3D5"
+  },
+  "grid": [
+    ".......ll.......",
+    "......llll......",
+    "......llll......",
+    "...dddddddddd...",
+    "..dlllllllllld..",
+    ".dbbllllllllbbd.",
+    ".dbbbbbbbbbbbbd.",
+    ".dbbffffffffbbd.",
+    ".dbbfweffwefbbd.",
+    ".dbbfeeffeefbbd.",
+    ".dbbfeeffeefbbd.",
+    ".dbbffffffffbbd.",
+    ".dbbrffffffrbbd.",
+    "bbbbffffffffbbbb",
+    "bbbbfffddfffbbbb",
+    ".dbbbbbbbbbbbbd.",
+    "..dbbbbbbbbbbd..",
+    "...dddddddddd...",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "................"
+  ]
+}

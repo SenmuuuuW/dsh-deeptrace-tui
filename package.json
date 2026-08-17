@@ -1,0 +1,52 @@
+{
+  "name": "dsh-deeptrace-tui",
+  "version": "0.1.0",
+  "description": "深迹 DeepTrace TUI — Your Agent, in numbers. 不离开终端，复盘你的 Agent。",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "bin": {
+    "deeptrace": "bin/deeptrace.mjs",
+    "dsh-trace": "bin/deeptrace.mjs"
+  },
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "assets"
+  ],
+  "dependencies": {
+    "dsh-whale-report": "github:SenmuuuuW/dsh-whale-report",
+    "fzstd": "^0.1.1",
+    "ink": "^5.2.0",
+    "ink-testing-library": "^4.0.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.5"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node bin/deeptrace.mjs",
+    "preview": "node bin/deeptrace.mjs --render overview"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}
