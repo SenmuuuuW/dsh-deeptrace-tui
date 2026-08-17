@@ -23,7 +23,7 @@ export function spriteNameFor(state: WhaleState): string {
 export interface WhaleFaceProps {
   state: WhaleState;
   color: boolean;
-  /** 仅渲染左上角区域（小终端隐藏部分鲸鱼娘）。 */
+  /** 小终端：只显示上半身（头部），裁掉下半部分。 */
   clipped?: boolean;
 }
 
@@ -42,7 +42,7 @@ export function getSprite(state: WhaleState): WhaleSprite {
 export function WhaleFace({ state, color, clipped = false }: WhaleFaceProps): React.ReactNode {
   const sprite = getSprite(state);
   const cells = spriteCells(sprite, color);
-  const rows = clipped ? cells.slice(0, 4) : cells;
+  const rows = clipped ? cells.slice(0, Math.ceil(cells.length / 2)) : cells;
   return (
     <Box flexDirection="column">
       {rows.map((row, y) => (
