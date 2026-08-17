@@ -32,7 +32,7 @@ export const USAGE = `深迹 DeepTrace TUI · Your Agent, in numbers.
   deeptrace --view trace         同上（别名）
 
 选项:
-  --render <view>   视图: ${PRESETS.join(" / ")} 之外的 overview|tools|trace|collab|history
+  --render <view>   视图: overview | tools | trace | collab | history
   --view <view>     --render 的别名
   --preset <p>      周期: ${PRESETS.join(" | ")}（默认 weekly）
   --watch <sec>     低频自动刷新（默认关闭）
