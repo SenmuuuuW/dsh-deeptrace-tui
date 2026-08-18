@@ -96,27 +96,35 @@ describe("像素鲸鱼娘 renderer", () => {
     }
   });
 
-  it("half-block 色彩模式：24×36 → 18 行；上下像素合并进 ▀ 的前景/背景", () => {
+  it("half-block 色彩模式：16×12 → 6 行；上下像素合并进 ▀ 的前景/背景", () => {
     const s = loadWhaleSprite("idle");
     const cells = spriteCells(s, true);
-    expect(cells).toHaveLength(18);
+    expect(cells).toHaveLength(s.h / 2);
     expect(cells[0]).toHaveLength(s.w);
-    // 眼睛 (8,20)=w 高光 (8,21)=e → 第 10 行 ▀ fg=w bg=e
-    const cell = cells[10][8];
-    expect(cell.char).toBe("▀");
-    expect(cell.fg).toBe(s.palette.w);
-    expect(cell.bg).toBe(s.palette.e);
+    // 眼睛区域 (5,5)=e 高光、下方 (5,6)=e → 第 3 行 (y4..5) ▀ bg=e
+    const eye = cells[2][5];
+    expect(eye.char).toBe("▀");
+    expect(eye.bg).toBe(s.palette.e);
     // 透明区域 → 空格
     expect(cells[0][0].char).toBe(" ");
   });
 
-  it("happy 帽顶喷水：上像素 f 下像素 l", () => {
+  it("happy 头顶喷泉：上像素 w 下像素 l", () => {
     const s = loadWhaleSprite("happy");
     const cells = spriteCells(s, true);
-    // 喷水 (11,1)=f，上像素 (11,0) 透明 → ▄ fg=f
-    const cell = cells[0][11];
-    expect(cell.char).toBe("▄");
-    expect(cell.fg).toBe(s.palette.f);
+    // 喷泉 (7,0)=w，下像素 (7,1)=l → 第 0 行 ▀ fg=w bg=l
+    const cell = cells[0][7];
+    expect(cell.char).toBe("▀");
+    expect(cell.fg).toBe(s.palette.w);
+    expect(cell.bg).toBe(s.palette.l);
+  });
+
+  it("mascot 尺寸约束：全部 16×12，低矮适合 TUI 装饰", () => {
+    for (const name of sprites) {
+      const s = loadWhaleSprite(name);
+      expect(s.w).toBeLessThanOrEqual(18);
+      expect(s.h).toBeLessThanOrEqual(14);
+    }
   });
 
   it("no-color 剪影：所有实体像素有明暗字符，透明为空格", () => {

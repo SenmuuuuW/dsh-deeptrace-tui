@@ -199,7 +199,7 @@ function OverviewView({ vm, data, theme, selected, contentHeight, showWhale }: {
 
   const right = showWhale ? (
     <Box flexDirection="column" marginLeft={2}>
-      <WhaleFace state={whaleState} color={theme.color} clipped={contentHeight < 26} />
+      <WhaleFace state={whaleState} color={theme.color} clipped={contentHeight < 14} />
       <Text bold color={t.brand} dimColor>鲸评 WHALE NOTE / OBSERVER</Text>
       {visibleNote.map((l, i) => (
         <Text key={i} color={l.kind === "opener" ? t.userAccent : l.kind === "aside" ? t.warn : t.text} dimColor={l.kind === "closer" || l.kind === "footer"}>
@@ -424,8 +424,8 @@ function HelpView(): React.ReactNode {
 
 export function Frame({ view, data, theme, width, height, selected, detail, helpOpen, loading, progress, error, flash, updatedAt, archiveInfo }: FrameProps): React.ReactNode {
   const contentHeight = Math.max(3, height - 6);
-  // 鲸鱼娘 24 列宽：宽度不足 100 隐藏；高度不足时只显示头部（clipped）。
-  const showWhale = width >= 100 && view === "overview" && data !== null;
+  // 小鲸鱼 mascot 16 列宽、6 行高：宽度 ≥88 显示；极矮终端只显示头部。
+  const showWhale = width >= 88 && view === "overview" && data !== null;
 
   let content: React.ReactNode;
   if (helpOpen) {

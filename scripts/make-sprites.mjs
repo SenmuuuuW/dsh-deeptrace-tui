@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * 深迹像素鲸鱼娘 —— 正式占位素材生成器（v2，chibi Q 版）。
+ * 深迹像素小鲸鱼 mascot —— 素材生成器（v3）。
  *
- * 设计（同一角色，只换表情/动作）：
- * - 24×36 像素（终端 half-block 渲染 ≈ 24×18 格，视觉接近正方形）
- * - 蓝黑头发 + 浅蓝高光（#1A2854 / #4D6BFE / #7B9BE8）
- * - 大眼睛（3×4，白高光）、小嘴、腮红
- * - 鲸鱼元素：鲸鱼帽（帽身+背鳍+后尾）、头侧小鳍边饰
- * - 圆润轮廓：无方头、无描边硬线，靠配色分层
- * - 透明背景；no-color 剪影按亮度自动映射
+ * 设计（同一只鲸鱼，只换表情/装饰）：
+ * - 16×12 逻辑像素（终端 half-block 渲染 ≈ 16×6 格，低矮装饰）
+ * - 圆润椭圆身体 + 统一深蓝轮廓 + 浅蓝肚皮 + 右上翘尾 + 左侧小鳍
+ * - 喷气孔在头顶；mood 装饰（喷泉/?/感叹号/火苗/zZ）克制使用
+ * - 深蓝 #0B1B4D / 中蓝 #4D6BFE / 浅蓝 #7B9BE8 / 白 #FFFFFF / 近黑 #101828 /
+ *   琥珀 #F5A623（仅 warning/angry 点缀）—— 共 6 色，适合 TUI
+ * - 正面 3/4 视角：圆身体 + 可见尾巴，一眼是鲸鱼
  *
  * 用法: node scripts/make-sprites.mjs
  */
@@ -16,20 +16,17 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const W = 24;
-const H = 36;
+const W = 16;
+const H = 12;
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "assets", "whale");
 
 const PALETTE = {
-  h: "#1A2854", // 蓝黑头发
-  H: "#4D6BFE", // 头发高光（DeepSeek Blue）
-  b: "#4D6BFE", // 鲸鱼帽 / 鳍 / 裙子（DeepSeek Blue）
-  l: "#7B9BE8", // 浅蓝（帽肚/高光）
-  f: "#E8EDFF", // 脸
-  s: "#FFB4C8", // 腮红
-  e: "#101828", // 眼睛/嘴（深色）
-  w: "#FFFFFF", // 眼高光
-  t: "#6FE3D5", // 水珠 / z / ?（signal cyan）
+  d: "#0B1B4D", // 深蓝（轮廓 / 喷气孔）
+  b: "#4D6BFE", // 中蓝（身体，DeepSeek Blue）
+  l: "#7B9BE8", // 浅蓝（肚皮 / 尾尖 / 鳍 / 水花）
+  w: "#FFFFFF", // 白（眼高光 / 水花 / zZ）
+  e: "#101828", // 近黑（眼睛 / 嘴）
+  y: "#F5A623", // 琥珀（感叹号 / 火苗 —— 仅提醒/生气）
 };
 
 const empty = () => Array.from({ length: H }, () => Array(W).fill("."));
@@ -39,193 +36,176 @@ const put = (g, x, y, ch) => {
 const rect = (g, x1, y1, x2, y2, ch) => {
   for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) put(g, x, y, ch);
 };
+const isSolid = (ch) => ch !== ".";
+const at = (g, x, y) => (x < 0 || x >= W || y < 0 || y >= H ? "." : g[y][x]);
 
-/** 左眼区域 (x0..x0+2, y0..y0+3) 绘制眼型。 */
-const EYES = {
-  open: (g, x0, y0) => {
-    rect(g, x0, y0, x0 + 2, y0 + 3, "e");
-    put(g, x0, y0, "w");
-    put(g, x0 + 2, y0 + 3, "w");
-  },
-  openSole: (g, x0, y0) => {
-    // 单高光（warning / angry）
-    rect(g, x0, y0, x0 + 2, y0 + 3, "e");
-    put(g, x0, y0, "w");
-  },
-  up: (g, x0, y0) => {
-    // 视线向上（思考）
-    rect(g, x0, y0, x0 + 2, y0 + 3, "e");
-    rect(g, x0, y0 + 3, x0 + 2, y0 + 3, "w");
-    put(g, x0, y0, "w");
-  },
-  happy: (g, x0, y0) => {
-    // 开心闭眼 ∩
-    put(g, x0, y0, "e");
-    put(g, x0 + 2, y0, "e");
-    put(g, x0 + 1, y0 + 1, "e");
-  },
-  closed: (g, x0, y0) => {
-    // 闭眼（困）
-    rect(g, x0, y0, x0 + 2, y0, "e");
-  },
-};
+/** 椭圆填充（含边界）。 */
+function ellipse(g, cx, cy, rx, ry, ch) {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const dx = (x - cx) / rx;
+      const dy = (y - cy) / ry;
+      if (dx * dx + dy * dy <= 1) put(g, x, y, ch);
+    }
+  }
+}
 
-/** 嘴型（中心 x11..12，y25..26）。 */
-const MOUTHS = {
-  calm: (g) => {
-    put(g, 11, 25, "e");
-    put(g, 12, 25, "e");
-  },
-  smile: (g) => {
-    // 张嘴笑
-    rect(g, 10, 25, 13, 25, "e");
-    rect(g, 11, 26, 12, 26, "e");
-  },
-  omega: (g) => {
-    // ω 嘴（开心）
-    put(g, 10, 25, "e");
-    put(g, 13, 25, "e");
-    put(g, 11, 26, "e");
-    put(g, 12, 26, "e");
-  },
-  o: (g) => {
-    put(g, 11, 25, "e");
-    put(g, 12, 25, "e");
-  },
-  flat: (g) => rect(g, 10, 25, 13, 25, "e"),
-  frown: (g) => {
-    // 撇嘴（生气但可爱）
-    put(g, 11, 25, "e");
-    put(g, 12, 25, "e");
-    rect(g, 10, 26, 13, 26, "e");
-  },
-};
+/** 统一轮廓：与透明相邻的实体像素 → 深蓝。 */
+function outline(g) {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const ch = g[y][x];
+      if (!isSolid(ch)) continue;
+      if (!isSolid(at(g, x - 1, y)) || !isSolid(at(g, x + 1, y)) || !isSolid(at(g, x, y - 1)) || !isSolid(at(g, x, y + 1))) {
+        g[y][x] = "d";
+      }
+    }
+  }
+}
 
-/** 基础角色：头发 + 脸 + 刘海 + 鲸鱼帽 + 侧鳍 + 身体。 */
-function baseCharacter() {
+/**
+ * 基础小鲸鱼：圆身体 + 肚皮 + 右上翘尾 + 左鳍 + 喷气孔。
+ * 眼睛/嘴/眉毛/mood 装饰由调用方叠加。
+ * 顺序：身体/肚皮 → 统一轮廓 → 尾/鳍（细结构后画，避免被轮廓吃掉）。
+ */
+function baseWhale() {
   const g = empty();
-  // ── 头发（蓝黑，圆润顶部）──
-  rect(g, 5, 8, 18, 8, "h");
-  rect(g, 4, 9, 19, 13, "h");
-  // 侧发（垂下，末端内收）
-  rect(g, 3, 12, 6, 23, "h");
-  rect(g, 17, 12, 20, 23, "h");
-  put(g, 4, 24, "h");
-  put(g, 5, 24, "h");
-  put(g, 18, 24, "h");
-  put(g, 19, 24, "h");
-  // ── 脸（先画，刘海后盖）──
-  rect(g, 7, 15, 17, 27, "f");
-  // ── 刘海（带分叉点）──
-  rect(g, 7, 14, 16, 15, "h");
-  put(g, 8, 16, "h");
-  put(g, 11, 16, "h");
-  put(g, 12, 16, "h");
-  put(g, 15, 16, "h");
-  // 头发高光
-  rect(g, 4, 14, 5, 21, "H");
-  rect(g, 18, 14, 19, 21, "H");
-  rect(g, 9, 11, 10, 13, "H");
-  // ── 鲸鱼帽（帽身 + 背鳍 + 后尾）──
-  rect(g, 11, 4, 14, 4, "b"); // 帽顶
-  rect(g, 10, 5, 15, 5, "b");
-  rect(g, 9, 6, 16, 8, "b");
-  rect(g, 9, 9, 16, 10, "b");
-  rect(g, 11, 9, 14, 10, "l"); // 帽肚浅蓝
-  put(g, 14, 7, "e"); // 帽上的小眼睛
-  // 背鳍
-  rect(g, 13, 2, 14, 3, "b");
-  // 后尾（鲸鱼尾，翘在帽后）
-  rect(g, 6, 5, 8, 5, "b");
-  rect(g, 7, 6, 8, 6, "b");
-  put(g, 8, 7, "b");
-  put(g, 8, 8, "b");
-  // ── 侧鳍边饰（头两侧）──
-  put(g, 3, 18, "b");
-  rect(g, 2, 19, 3, 20, "b");
-  put(g, 3, 21, "b");
-  put(g, 20, 18, "b");
-  rect(g, 20, 19, 21, 20, "b");
-  put(g, 20, 21, "b");
-  // ── 身体（chibi 小肩 + 裙子）──
-  rect(g, 8, 28, 15, 28, "f"); // 领口
-  rect(g, 8, 29, 15, 29, "b");
-  rect(g, 9, 30, 14, 30, "b");
-  rect(g, 10, 31, 13, 32, "b");
-  rect(g, 11, 33, 12, 34, "b");
-  put(g, 9, 30, "l");
-  put(g, 10, 30, "l");
+  // 身体（圆润椭圆，x1..14, y3..10）
+  ellipse(g, 7.5, 6.5, 6.5, 3.6, "b");
+  // 肚皮（下半浅蓝）
+  ellipse(g, 7.5, 8.6, 4.5, 2.0, "l");
+  // 统一轮廓
+  outline(g);
+  // 右上翘尾（后画：上叉翘起 + 柄 + 下叉，浅蓝尖醒目）
+  put(g, 13, 2, "l");
+  put(g, 14, 2, "l");
+  put(g, 12, 3, "b");
+  put(g, 13, 3, "b");
+  put(g, 12, 4, "b");
+  put(g, 13, 4, "b");
+  put(g, 13, 5, "l");
+  put(g, 14, 5, "l");
+  // 左鳍（后画，浅蓝小三角）
+  put(g, 1, 6, "l");
+  put(g, 1, 7, "l");
+  put(g, 2, 7, "l");
+  // 喷气孔（头顶）
+  put(g, 7, 2, "d");
+  put(g, 8, 2, "d");
   return g;
 }
 
-/** 腮红。 */
-function blush(g, on) {
-  if (!on) return;
-  rect(g, 7, 24, 8, 25, "s");
-  rect(g, 16, 24, 17, 25, "s");
+/** 眼睛（2×2，高光可开关 / 位置可调）。 */
+function eyes(g, opts = {}) {
+  const { highlight = true, style = "open", lookUp = false } = opts;
+  for (const x0 of [4, 10]) {
+    if (style === "closed") {
+      rect(g, x0, 5, x0 + 1, 5, "e"); // 闭眼横线
+    } else {
+      rect(g, x0, 5, x0 + 1, 6, "e");
+      if (highlight) {
+        put(g, x0, 5, "w");
+        if (lookUp) {
+          // 上视：高光在瞳孔下方
+          put(g, x0 + 1, 6, "w");
+        }
+      }
+    }
+  }
 }
 
-/** 眼睛。 */
-function eyes(g, style) {
-  const fn = EYES[style];
-  fn(g, 8, 20);
-  fn(g, 13, 20);
+/** 嘴（中心 x7..8，y7..8）。 */
+function mouth(g, kind) {
+  if (kind === "calm") {
+    put(g, 7, 7, "e");
+    put(g, 8, 7, "e");
+  } else if (kind === "smile") {
+    // 张嘴笑
+    put(g, 7, 7, "e");
+    put(g, 8, 7, "e");
+    put(g, 7, 8, "e");
+    put(g, 8, 8, "e");
+  } else if (kind === "o") {
+    // 小圆嘴
+    rect(g, 7, 7, 8, 8, "e");
+  } else if (kind === "flat") {
+    // 平嘴（提醒）
+    rect(g, 6, 7, 9, 7, "e");
+  } else if (kind === "frown") {
+    // 撇嘴（生气）
+    put(g, 6, 7, "e");
+    put(g, 9, 7, "e");
+    put(g, 7, 8, "e");
+    put(g, 8, 8, "e");
+  }
 }
 
-/** 眉毛。 */
+/** 眉毛（眼睛上方 y4）。 */
 function brows(g, style) {
   if (style === "straight") {
-    // 平眉（提醒）：在眼睛上一行，不贴眼
-    rect(g, 8, 18, 10, 18, "e");
-    rect(g, 13, 18, 15, 18, "e");
+    rect(g, 4, 4, 5, 4, "e");
+    rect(g, 10, 4, 11, 4, "e");
   } else if (style === "angry") {
-    // 外高内低（可爱生气）：3 像素斜线
-    put(g, 8, 17, "e");
-    put(g, 9, 18, "e");
-    put(g, 10, 19, "e");
-    put(g, 15, 17, "e");
-    put(g, 14, 18, "e");
-    put(g, 13, 19, "e");
+    // 外高内低
+    put(g, 4, 3, "e");
+    put(g, 5, 4, "e");
+    put(g, 11, 3, "e");
+    put(g, 10, 4, "e");
   }
 }
 
-function mouth(g, style) {
-  MOUTHS[style](g);
-}
-
-/** 表情小元素。 */
-function mark(g, kind) {
+/** 头顶装饰（y0..2 左侧区域 + 头顶中间，避开右上翘尾）。 */
+function topMark(g, kind) {
   if (kind === "spout") {
-    // 帽顶喷水（开心）
-    put(g, 11, 1, "f");
-    rect(g, 11, 2, 12, 3, "l");
+    // 小喷泉（开心，头顶中间）
+    rect(g, 6, 1, 8, 1, "l");
+    put(g, 7, 0, "w");
   } else if (kind === "question") {
-    // 思考气泡 ?
-    put(g, 20, 1, "f");
-    put(g, 19, 2, "f");
-    put(g, 21, 2, "f");
-    put(g, 20, 3, "f");
-    put(g, 20, 5, "f");
+    // ? 气泡（思考，左上）
+    put(g, 4, 0, "w");
+    put(g, 3, 1, "w");
+    put(g, 5, 1, "w");
+    put(g, 4, 2, "w");
+    put(g, 4, 3, "w");
+  } else if (kind === "exclaim") {
+    // 感叹号（提醒，左上，琥珀）
+    put(g, 4, 1, "y");
+    put(g, 4, 2, "y");
+    put(g, 4, 3, "y");
+    put(g, 4, 4, "y");
+  } else if (kind === "fire") {
+    // 小火苗（生气，头顶中间，琥珀）
+    put(g, 7, 0, "y");
+    put(g, 7, 1, "y");
+    put(g, 8, 1, "y");
   } else if (kind === "zzz") {
-    // 睡觉 z
-    rect(g, 19, 1, 21, 1, "f");
-    put(g, 20, 2, "f");
-    rect(g, 19, 3, 21, 3, "f");
+    // z（困困，左上）
+    rect(g, 3, 0, 5, 0, "w");
+    put(g, 4, 1, "w");
+    rect(g, 3, 2, 5, 2, "w");
   } else if (kind === "sweat") {
-    // 汗珠（提醒）
-    put(g, 21, 13, "t");
-    put(g, 21, 14, "t");
-    rect(g, 21, 15, 22, 15, "t");
+    // 汗滴（提醒，浅蓝，左上）
+    put(g, 4, 1, "l");
+    put(g, 4, 2, "l");
+    put(g, 3, 3, "l");
+    put(g, 4, 3, "l");
   }
+}
+
+/** 脸颊（鼓起/腮红，琥珀点缀 —— angry 用）。 */
+function cheek(g, on) {
+  if (!on) return;
+  put(g, 3, 8, "y");
+  put(g, 12, 8, "y");
 }
 
 function build(name, opts) {
-  const g = baseCharacter();
+  const g = baseWhale();
   eyes(g, opts.eyes);
   brows(g, opts.brows ?? "none");
-  blush(g, opts.blush ?? true);
   mouth(g, opts.mouth);
-  if (opts.mark !== undefined) mark(g, opts.mark);
+  cheek(g, opts.cheek ?? false);
+  if (opts.mark !== undefined) topMark(g, opts.mark);
   return {
     name,
     w: W,
@@ -236,12 +216,12 @@ function build(name, opts) {
 }
 
 const sprites = [
-  build("idle", { eyes: "open", mouth: "calm", blush: true }),
-  build("happy", { eyes: "happy", mouth: "omega", blush: true, mark: "spout" }),
-  build("thinking", { eyes: "up", mouth: "o", blush: true, mark: "question" }),
-  build("warning", { eyes: "openSole", brows: "straight", mouth: "flat", blush: false, mark: "sweat" }),
-  build("angry", { eyes: "openSole", brows: "angry", mouth: "frown", blush: false }),
-  build("sleepy", { eyes: "closed", mouth: "o", blush: true, mark: "zzz" }),
+  build("idle", { eyes: { highlight: true }, mouth: "calm" }),
+  build("happy", { eyes: { highlight: true }, mouth: "smile", mark: "spout" }),
+  build("thinking", { eyes: { highlight: true, lookUp: true }, mouth: "o", mark: "question" }),
+  build("warning", { eyes: { highlight: true }, brows: "straight", mouth: "flat", mark: "sweat" }),
+  build("angry", { eyes: { highlight: false }, brows: "angry", mouth: "frown", cheek: true, mark: "fire" }),
+  build("sleepy", { eyes: { highlight: false, style: "closed" }, mouth: "o", mark: "zzz" }),
 ];
 
 mkdirSync(OUT, { recursive: true });
