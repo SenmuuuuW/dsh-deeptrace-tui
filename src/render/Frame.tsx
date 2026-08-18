@@ -96,7 +96,7 @@ export function Frame({
 
   let content: React.ReactNode;
   if (helpOpen) {
-    content = <HelpView theme={theme} archiveInfo={archiveInfo} updatedAt={updatedAt} />;
+    content = <HelpView theme={theme} archiveInfo={archiveInfo} updatedAt={updatedAt} width={width} height={height} />;
   } else if (error !== null) {
     content = (
       <Box flexDirection="column">

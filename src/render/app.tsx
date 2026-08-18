@@ -3,12 +3,13 @@
  * 快捷键遵循 dsh-tui 习惯（? 帮助、q 退出），列表导航 j/k/↑/↓。
  * 历史页：c/s/t/h 切换指标（页面局部，不与其他页冲突）。
  */
-import { useInput, useStdout } from "ink";
+import { useInput } from "ink";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTerminalDimensions } from "./dimensions.js";
 import { copyToClipboard } from "../clipboard.js";
 import { Controller } from "../controller.js";
 import type { ReportPreset } from "../core/index.js";
-import { Frame, type View } from "./Frame.js";
+import { Frame, widthBandOf, heightBandOf, type View } from "./Frame.js";
 import type { ResolvedTheme } from "./theme.js";
 import { attentionOf } from "../vm/overview.js";
 import type { HistoryMetric } from "../vm/history.js";
@@ -33,13 +34,19 @@ function viewForFinding(id: string): View {
 }
 
 export function DeepTraceApp({ dshHome, preset, theme, watchSec = 0, width, height, onExit }: AppProps): React.ReactNode {
-  const { stdout } = useStdout();
-  // 防御性尺寸：winsize 缺失/异常（如 0×0 的伪终端）时钳制到最小可用布局。
-  const rawW = width ?? stdout.columns ?? 100;
-  const rawH = height ?? stdout.rows ?? 40;
-  const w = Math.max(40, Math.min(rawW, 300));
-  const h = Math.max(12, Math.min(rawH, 100));
+  // Reactive 终端尺寸：初始化读实际 stdout，resize 事件实时更新
+  // （Ink 5 的 resize 只重排旧布局、不重渲染组件树，必须自监听）。
+  const { width: w, height: h, source: dimSource } = useTerminalDimensions(width, height);
   const low = h < 26;
+
+  // ── 诊断（DEEPTRACE_DIM_DEBUG=1）：TTY/Ink/effective 三组尺寸 + 档位 ──
+  const dbg = process.env.DEEPTRACE_DIM_DEBUG !== undefined;
+  useEffect(() => {
+    if (!dbg) return;
+    console.error(
+      `[dims] init process=${process.stdout.columns ?? "?"}x${process.stdout.rows ?? "?"} effective=${w}x${h} source=${dimSource} band=${widthBandOf(w)}/${heightBandOf(h)}`,
+    );
+  }, [dbg, w, h, dimSource]);
 
   const controller = useMemo(() => new Controller(dshHome, preset), [dshHome, preset]);
   const [snap, setSnap] = useState(() => controller.snapshot());

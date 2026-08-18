@@ -9,6 +9,7 @@ export * from "./data/archive.js";
 export * from "./data/store.js";
 export * from "./data/report.js";
 export * from "./render/theme.js";
+export * from "./render/dimensions.js";
 export { Frame, VIEW_LABELS, windowSlice, type FrameProps, type View } from "./render/Frame.js";
 export { DeepTraceApp, type AppProps } from "./render/app.js";
 export * from "./render/whale/render.js";

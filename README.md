@@ -196,6 +196,9 @@ DeepTrace 的观察员 —— **超简洁像素小鲸鱼**（16×12 逻辑像素
 | NORMAL | 26–39 | — |
 | TALL | ≥40 | — |
 
+尺寸实时响应终端 resize（监听 stdout resize 事件，无需重启）；优先级：
+显式 `--width/--height` > Ink stdout > process.stdout > 100×40 兜底。
+
 信息层级：KPI（数字）→ 需要关注（异常优先 Top 3）→ 趋势（方向感）→ Trace（深入）。
 英文只作小型 metadata（LIVE / TOOL HEALTH / DIAGNOSTICS），中文是主信息。
 
