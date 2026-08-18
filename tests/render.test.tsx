@@ -16,6 +16,7 @@ async function frameText(view: "overview" | "tools" | "trace" | "collab" | "hist
       height={height}
       selected={0}
       detail={null}
+      noteOpen={false}
       helpOpen={false}
       loading={false}
       progress={null}
@@ -23,6 +24,7 @@ async function frameText(view: "overview" | "tools" | "trace" | "collab" | "hist
       flash={null}
       updatedAt={data.generatedAt}
       archiveInfo={`${data.archive.files} 存档`}
+      historyMetric="cost"
     />,
   );
   await new Promise((r) => setTimeout(r, 20));
@@ -32,26 +34,28 @@ async function frameText(view: "overview" | "tools" | "trace" | "collab" | "hist
 }
 
 describe("Frame 渲染", () => {
-  it("总览：标题 / 指标 / 趋势 / 发现 / 鲸评", async () => {
+  it("总览：KPI / 需要关注 / 趋势 / 鲸评", async () => {
     const text = await frameText("overview");
     expect(text).toContain("深迹 DEEPTRACE");
     expect(text).toContain("● LIVE");
     expect(text).toContain("¥38.60");
+    expect(text).toContain("需要关注");
     expect(text).toContain("趋势");
-    expect(text).toContain("LIVE");
     expect(text).toContain("鲸评");
+    expect(text).toContain("成本");
+    expect(text).toContain("Cache");
   });
 
-  it("工具健康：异常优先 + 错误码", async () => {
+  it("工具健康：异常优先 + ATTENTION", async () => {
     const text = await frameText("tools");
     expect(text).toContain("工具健康");
     expect(text).toContain("TOOL HEALTH");
   });
 
-  it("会话轨迹：按费用排序 + 风险标记", async () => {
+  it("会话轨迹：列表 + by cost", async () => {
     const text = await frameText("trace");
     expect(text).toContain("TRACE");
-    expect(text).toContain("按费用排序");
+    expect(text).toContain("by cost");
   });
 
   it("协作复盘：样本不足提示", async () => {
@@ -60,17 +64,46 @@ describe("Frame 渲染", () => {
     expect(text).toContain("样本不足");
   });
 
-  it("历史趋势：周期表格 + 活跃", async () => {
+  it("历史趋势：单指标 + 按日活跃", async () => {
     const text = await frameText("history");
     expect(text).toContain("HISTORY");
     expect(text).toContain("LIVE");
     expect(text).toContain("按日活跃");
   });
 
-  it("窄终端（80×24）不炸布局：无鲸鱼列", async () => {
+  it("窄终端（80×24）不炸布局：无鲸鱼列 + Top2 需要关注", async () => {
     const text = await frameText("overview", 80, 24);
     expect(text).toContain("深迹 DEEPTRACE");
-    expect(text).toContain("发现");
+    expect(text).toContain("需要关注");
+  });
+
+  it("宽屏（130×50）Trace 双栏：detail 常显", async () => {
+    const data = makeAppData(makeStats());
+    const { lastFrame, unmount } = render(
+      <Frame
+        view="trace"
+        data={data}
+        theme={resolveTheme(false)}
+        width={130}
+        height={50}
+        selected={0}
+        detail={null}
+        noteOpen={false}
+        helpOpen={false}
+        loading={false}
+        progress={null}
+        error={null}
+        flash={null}
+        updatedAt={data.generatedAt}
+        archiveInfo=""
+        historyMetric="cost"
+      />,
+    );
+    await new Promise((r) => setTimeout(r, 20));
+    const text = lastFrame() ?? "";
+    unmount();
+    expect(text).toContain("SESSION #");
+    expect(text).toContain("Cost");
   });
 });
 

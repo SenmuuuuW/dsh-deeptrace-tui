@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { ReportStats } from "../src/core/index.js";
 import { makeAppData, makeStats } from "./helpers.js";
 import { bar10, formatDelta, formatDuration, formatPct, formatYen, sparkline } from "../src/vm/format.js";
-import { buildOverviewVm, findingsOf } from "../src/vm/overview.js";
+import { attentionOf, buildOverviewVm, periodShortOf, trendLines, whaleNoteSplit } from "../src/vm/overview.js";
 import { buildToolsVm } from "../src/vm/tools.js";
 import { buildTraceVm } from "../src/vm/trace.js";
-import { buildHistoryVm } from "../src/vm/history.js";
+import { buildHistoryVm, historyRows, metricText, metricValue } from "../src/vm/history.js";
 
 describe("format", () => {
   it("formatYen / formatPct / formatDelta", () => {
@@ -40,23 +40,50 @@ describe("format", () => {
 });
 
 describe("overview vm", () => {
-  it("buildOverviewVm：核心指标与趋势", () => {
+  it("buildOverviewVm：KPI 四指标 + 压缩趋势", () => {
     const vm = buildOverviewVm(makeAppData(makeStats()));
-    expect(vm.costText).toBe("¥38.60");
-    expect(vm.costDelta).toBe("▲ 93%");
+    expect(vm.kpi.costText).toBe("¥38.60");
+    expect(vm.kpi.costDelta).toBe("▲ 93%");
+    expect(vm.kpi.sessions).toBeGreaterThan(0);
     expect(vm.trend).toHaveLength(4);
-    expect(vm.trend[0].rows).toHaveLength(5);
-    expect(vm.trend[0].rows[4].live).toBe(true);
-    expect(vm.trend[0].rows[4].label).toBe("LIVE");
+    expect(vm.trend[0].title).toBe("成本");
+    expect(vm.trend[0].spark.length).toBe(8);
+    expect(vm.trend[0].value.length).toBeGreaterThan(0);
   });
 
-  it("findingsOf：最多 6 条带序号", () => {
-    const insights = Array.from({ length: 8 }, (_, i) => ({
-      id: `i${i}`, level: "tip" as const, title: `洞察 ${i}`, detail: "", action: "",
-    }));
-    const f = findingsOf(insights);
-    expect(f).toHaveLength(6);
-    expect(f[0].rank).toBe(1);
+  it("attentionOf：info 不占位，critical > warning > tip，Top N", () => {
+    const insights = [
+      { id: "cache-good", level: "info" as const, title: "缓存命中率良好", detail: "", action: "" },
+      { id: "i2", level: "tip" as const, title: "提示项", detail: "", action: "" },
+      { id: "i1", level: "critical" as const, title: "致命项", detail: "", action: "" },
+      { id: "i3", level: "warning" as const, title: "警告项", detail: "", action: "" },
+      { id: "i4", level: "tip" as const, title: "提示项2", detail: "", action: "" },
+    ];
+    const a = attentionOf(insights, 3);
+    expect(a).toHaveLength(3);
+    expect(a.map((x) => x.title)).toEqual(["致命项", "警告项", "提示项"]);
+    expect(a[0].tag).toBe("NOTICE");
+    expect(a[0].rank).toBe(1);
+  });
+
+  it("attentionOf：id → 英文短标签", () => {
+    const a = attentionOf([{ id: "tool-health", level: "warning" as const, title: "工具 edit 失败", detail: "", action: "" }], 3);
+    expect(a[0].tag).toBe("TOOL HEALTH");
+  });
+
+  it("periodShortOf：wk-2026-W34 → W34", () => {
+    const app = makeAppData(makeStats());
+    expect(periodShortOf(app)).toBe("W34");
+  });
+
+  it("trendLines / whaleNoteSplit：方向感 + 短鲸评", () => {
+    const app = makeAppData(makeStats());
+    const lines = trendLines(app);
+    expect(lines[3].title).toBe("夜间");
+    const note = whaleNoteSplit(app);
+    expect(note.short.length).toBeGreaterThan(0);
+    expect(note.short.length).toBeLessThanOrEqual(2);
+    expect(note.full.length).toBeGreaterThanOrEqual(note.short.length);
   });
 });
 
@@ -106,13 +133,29 @@ describe("trace vm", () => {
 });
 
 describe("history vm", () => {
-  it("5 周期行 + 按日活跃", () => {
+  it("单指标 × 5 周期 + 比例条形 + 按日活跃", () => {
     const app = makeAppData(makeStats());
-    const vm = buildHistoryVm(app);
+    const vm = buildHistoryVm(app, "cost");
     expect(vm.rows).toHaveLength(5);
     expect(vm.rows[4].live).toBe(true);
-    expect(vm.rows[4].costText).toBe("¥38.60");
+    expect(vm.rows[4].valueText).toBe("¥38.60");
+    expect(vm.rows[4].bar.length).toBeGreaterThan(0);
     expect(vm.daily.length).toBeGreaterThan(0);
     expect(vm.dailySpark.length).toBeGreaterThan(0);
+  });
+
+  it("指标切换：tokens / cache 文本口径", () => {
+    const app = makeAppData(makeStats());
+    expect(metricText(app.trend[4], "tokens")).toBe("4.00M");
+    expect(metricText(app.trend[4], "cache")).toBe("99.0%");
+    expect(metricValue(app.trend[4], "sessions")).toBe(20);
+    const vm = buildHistoryVm(app, "cache");
+    expect(vm.rows[0].valueText.length).toBeGreaterThan(0);
+  });
+
+  it("historyRows：全零周期 → 点阵条形", () => {
+    const app = makeAppData(makeStats(), { trend: makeAppData(makeStats()).trend.map((t) => ({ ...t, cost: 0 })) });
+    const rows = historyRows(app, "cost");
+    expect(rows[0].bar).toBe("·".repeat(12));
   });
 });

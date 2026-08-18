@@ -30,7 +30,9 @@ Frame（Ink 5 / React，纯展示，无副作用）
 | `src/data/report.ts` | 报告控制器：周期范围、趋势、prev 基线、会话费用折算编排 | 全部算法来自 core |
 | `src/controller.ts` | TUI 状态机：加载 / 刷新 / 进度广播 | 与 UI 解耦 |
 | `src/vm/*` | 视图模型（纯函数）：overview / tools / trace / history / format | 无 Ink 依赖，可直接单测 |
-| `src/render/Frame.tsx` | 五视图 + 头部/页脚（presentational） | 无副作用，交互 App 与无头渲染共用 |
+| `src/render/Frame.tsx` | 框架壳：响应式档位 + 视图路由（presentational） | 无副作用，交互 App 与无头渲染共用 |
+| `src/render/layout.tsx` | Header / Footer / KPI / 分隔线（极简壳） | 全屏仅 1 条分隔线 |
+| `src/render/views/*` | 五视图 + Help 独立组件 | 纯展示，数据来自 vm |
 | `src/render/app.tsx` | DeepTraceApp：键盘导航、状态订阅、复制、低频 watch | 不虚构状态 |
 | `src/render/whale/` | 像素鲸鱼娘：sprite loader + half-block renderer + Ink 组件 | mood 与 core whaleMood 严格同源 |
 | `src/cli.tsx` | CLI：交互 / 无头渲染 / 参数解析 | — |
@@ -75,18 +77,33 @@ Frame（Ink 5 / React，纯展示，无副作用）
 
 遵循 dsh-tui 习惯（`?` 帮助、`q` 退出、raw-mode 输入）：
 
-`1-5` 视图 · `j/↓ k/↑` 移动 · `Enter` 打开 · `Esc` 返回 · `r` 刷新 ·
-`c` 复制 Session ID · `?` 帮助 · `q` 退出 · `Ctrl+C` 退出
+`1-5` 视图 · `j/↓ k/↑` 移动 · `Enter` 打开（会话详情 / 需要关注跳转 / 鲸评展开）· `Esc` 返回 ·
+`r` 刷新 · `c` 复制 Session ID（会话详情）· 历史页 `c/s/t/h` 切换指标 ·
+`?` 帮助（含 DIAGNOSTICS）· `q` 退出 · `Ctrl+C` 退出
 
 **会话跳转不伪造**：官方 DSH 没有跨应用"打开会话"机制（dsh-tui 的 resume 是 profile 内自实现），
 因此与 Web 版一致提供"复制 Session ID"（`pbcopy`/`wl-copy`/`xclip`，缺失时在状态行展示 ID 本体）。
 
-## 7. 颜色与响应式
+## 7. 颜色与响应式（v2）
 
-- token 与 dsh-tui（SONAR/ABYSS）同一套深海语义：brand `#4D6BFE`、navy `#05070F`、muted 冷灰、
-  signal cyan、warn amber、error red；
+**颜色角色**（统一，不做彩虹）：brand=蓝 → 身份/激活 · signal=cyan → 信息 ·
+warn=amber → 注意 · error=red → 仅真危险 · muted=灰 → 元数据 · text=白 → 主内容。
+
 - no-color：全部 token → undefined，只保留 bold/dim（`NO_COLOR` / `TERM=dumb` / `--no-color` 自动降级）；
-- 响应式：宽度 <96 隐藏鲸鱼列；<60 精简页脚与次要 meta；高度不足时列表虚拟化（`windowSlice`）；
+- **响应式三档宽度 × 三档高度**（`widthBandOf` / `heightBandOf`，不做几十个断点）：
+
+| 档位 | 条件 | 行为 |
+| --- | --- | --- |
+| COMPACT | <90 列 | 单列、隐藏鲸鱼、KPI 四列固定 |
+| STANDARD | 90–129 | 主内容 + 右下小鲸鱼 |
+| WIDE | ≥130 | Trace 双栏（左列表右 detail）、Tools 正常工具双列 |
+| LOW | <26 行 | 需要关注 Top 2、隐藏鲸评、footer 永远可见 |
+| NORMAL | 26–39 | — |
+| TALL | ≥40 | — |
+
+- 信息架构：KPI（数字）→ 需要关注（异常优先 Top 3）→ 趋势（方向感）→ Trace（深入）；
+  Overview 不重复 History 的完整趋势；全屏分隔线仅 Header 下 1 条，其余靠空白/缩进/颜色分层；
+- 布局文件：`src/render/layout.tsx`（Header/Footer/KPI）+ `src/render/views/*`（五视图 + Help）；
   winsize 缺失（0×0 伪终端）时钳制到最小布局。
 
 ## 8. 隐私与安全边界

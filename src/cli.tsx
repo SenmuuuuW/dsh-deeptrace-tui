@@ -43,7 +43,8 @@ export const USAGE = `深迹 DeepTrace TUI · Your Agent, in numbers.
 
 键盘:
   1-5 视图 · j/k/↑↓ 移动 · Enter 打开 · Esc 返回 · r 刷新
-  c 复制 Session ID · ? 帮助 · q 退出
+  c 复制 Session ID（会话详情）· 历史页 c/s/t/h 切换指标
+  ? 帮助 · q 退出
 `;
 
 export interface CliArgs {
@@ -123,6 +124,7 @@ export async function renderHeadless(args: CliArgs): Promise<string> {
       height={args.height}
       selected={0}
       detail={null}
+      noteOpen={false}
       helpOpen={false}
       loading={false}
       progress={null}
@@ -130,6 +132,7 @@ export async function renderHeadless(args: CliArgs): Promise<string> {
       flash={null}
       updatedAt={data.generatedAt}
       archiveInfo={`${data.archive.files} 存档 · ${data.archive.events.toLocaleString()} 事件`}
+      historyMetric="cost"
     />,
   );
   await new Promise((resolve) => setTimeout(resolve, 30));
