@@ -13,14 +13,14 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { render } from "ink";
-import { render as testRender } from "ink-testing-library";
+import { renderToText } from "./render/headless.js";
 import { Controller } from "./controller.js";
 import type { ReportPreset } from "./core/index.js";
 import { SessionStore } from "./data/store.js";
 import { buildReport } from "./data/report.js";
 import { DeepTraceApp } from "./render/app.js";
 import { Frame, VIEW_LABELS, type View } from "./render/Frame.js";
-import { detectColorSupport, resolveTheme } from "./render/theme.js";
+import { detectAsciiFallback, detectColorSupport, resolveTheme } from "./render/theme.js";
 
 const PRESETS: ReportPreset[] = ["weekly", "daily", "24h", "monthly", "yearly"];
 
@@ -37,6 +37,7 @@ export const USAGE = `深迹 DeepTrace TUI · Your Agent, in numbers.
   --preset <p>      周期: ${PRESETS.join(" | ")}（默认 weekly）
   --watch <sec>     低频自动刷新（默认关闭）
   --no-color        单色模式（兼容 no-color 终端）
+  --ascii           纯 ASCII 边框（无制表符字体时用）
   --dsh-home <path> 会话存档根（默认 $DSH_HOME 或 ~/.dsh）
   --width/--height  固定视口（无头渲染用，默认 100x40）
   --help            显示帮助
@@ -52,6 +53,7 @@ export interface CliArgs {
   preset: ReportPreset;
   watchSec: number;
   color: boolean;
+  ascii: boolean;
   dshHome: string;
   width: number;
   height: number;
@@ -64,6 +66,7 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     preset: "weekly",
     watchSec: 0,
     color: true,
+    ascii: false,
     dshHome: process.env.DSH_HOME ?? join(homedir(), ".dsh"),
     width: 100,
     height: 40,
@@ -107,6 +110,7 @@ export function parseArgs(argv: readonly string[]): CliArgs {
   const dshHome = value("--dsh-home");
   if (dshHome !== undefined) args.dshHome = dshHome;
   args.color = detectColorSupport(process.env, argv);
+  args.ascii = detectAsciiFallback(process.env, argv);
   return args;
 }
 
@@ -114,8 +118,8 @@ export function parseArgs(argv: readonly string[]): CliArgs {
 export async function renderHeadless(args: CliArgs): Promise<string> {
   const store = new SessionStore(args.dshHome);
   const data = await buildReport(store, args.preset);
-  const theme = resolveTheme(args.color);
-  const frame = testRender(
+  const theme = resolveTheme(args.color, args.ascii);
+  return await renderToText(
     <Frame
       view={args.renderView ?? "overview"}
       data={data}
@@ -134,11 +138,8 @@ export async function renderHeadless(args: CliArgs): Promise<string> {
       archiveInfo={`${data.archive.files} 存档 · ${data.archive.events.toLocaleString()} 事件`}
       historyMetric="cost"
     />,
+    { width: args.width, height: args.height },
   );
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  const text = frame.lastFrame() ?? "";
-  frame.unmount();
-  return text;
 }
 
 export async function main(argv: readonly string[]): Promise<number> {
@@ -159,7 +160,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     process.stdout.write(text + "\n");
     return 0;
   }
-  const theme = resolveTheme(args.color);
+  const theme = resolveTheme(args.color, args.ascii);
   render(<DeepTraceApp dshHome={args.dshHome} preset={args.preset} theme={theme} watchSec={args.watchSec} />);
   return 0;
 }

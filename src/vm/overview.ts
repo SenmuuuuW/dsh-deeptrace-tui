@@ -104,7 +104,7 @@ export function periodShortOf(app: AppData): string {
 }
 
 /** 趋势压缩：4 行（成本/会话/Cache/夜间），只给方向感。 */
-export function trendLines(app: AppData): TrendLineVm[] {
+export function trendLines(app: AppData, ascii = false): TrendLineVm[] {
   const t = app.trend;
   const line = (
     title: string,
@@ -112,7 +112,7 @@ export function trendLines(app: AppData): TrendLineVm[] {
     num: (p: (typeof t)[number]) => number,
   ): TrendLineVm => ({
     title,
-    spark: sparkline(t.map(num), 8),
+    spark: sparkline(t.map(num), 8, ascii),
     value: fmt(t[t.length - 1]),
     live: t[t.length - 1]?.live ?? false,
   });
@@ -133,7 +133,7 @@ export function whaleNoteSplit(app: AppData): { short: { text: string; kind: str
   return { short, full: lines };
 }
 
-export function buildOverviewVm(app: AppData, attentionMax = 3): OverviewVm {
+export function buildOverviewVm(app: AppData, attentionMax = 3, ascii = false): OverviewVm {
   const stats = app.stats;
   const t = stats.tokens;
   const delta = costDeltaPct({ stats, prev: app.prev ?? undefined, cost: app.cost });
@@ -144,13 +144,13 @@ export function buildOverviewVm(app: AppData, attentionMax = 3): OverviewVm {
     live: app.live,
     kpi: {
       costText: formatYen(app.cost.total),
-      costDelta: formatDelta(delta),
+      costDelta: formatDelta(delta, ascii),
       sessions: stats.sessions,
       tokensText: formatBig(t.input + t.output + t.cacheRead + t.reasoning),
       cacheRateText: formatPct(cacheHitRate(stats)),
     },
     attention: attentionOf(app.insights, attentionMax),
-    trend: trendLines(app),
+    trend: trendLines(app, ascii),
     whaleMood: app.whale.mood,
     whaleNoteShort: note.short,
     whaleNoteFull: note.full,

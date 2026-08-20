@@ -102,7 +102,7 @@ describe("tools vm", () => {
     expect(vm.tools[0].name).toBe("edit");
     expect(vm.tools[0].anomaly).toBe(true);
     expect(vm.tools[1].anomaly).toBe(false);
-    expect(vm.tools[0].errorCodes[0]).toEqual({ code: "FS_NOT_OBSERVED", count: 26 });
+    expect(vm.tools[0].errorCodes[0]).toEqual({ code: "FS_NOT_OBSERVED", count: 26, side: "unknown" });
   });
 
   it("失败率文本与条形", () => {
@@ -153,9 +153,9 @@ describe("history vm", () => {
     expect(vm.rows[0].valueText.length).toBeGreaterThan(0);
   });
 
-  it("historyRows：全零周期 → 点阵条形", () => {
+  it("historyRows：全零周期 → 只画基线刻度，不铺满（0 不该看起来像最大值）", () => {
     const app = makeAppData(makeStats(), { trend: makeAppData(makeStats()).trend.map((t) => ({ ...t, cost: 0 })) });
     const rows = historyRows(app, "cost");
-    expect(rows[0].bar).toBe("·".repeat(12));
+    expect(rows[0].bar).toBe("-");
   });
 });

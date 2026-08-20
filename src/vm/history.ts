@@ -4,7 +4,7 @@
  * 细节才允许完整趋势（Overview 只给方向感）。
  */
 import type { AppData } from "../data/report.js";
-import { formatBig, formatPct, formatYen, sparkline } from "./format.js";
+import { formatBig, formatPct, formatYen, ratioBar, sparkline } from "./format.js";
 
 export type HistoryMetric = "cost" | "sessions" | "tokens" | "cache";
 
@@ -46,7 +46,7 @@ export function metricText(p: { cost: number; sessions: number; totalTokens: num
 }
 
 /** 单指标 × 5 周期 → 值 + 比例条形（LIVE 行高亮）。 */
-export function historyRows(app: AppData, metric: HistoryMetric, barWidth = 12): HistoryBarRow[] {
+export function historyRows(app: AppData, metric: HistoryMetric, barWidth = 12, ascii = false): HistoryBarRow[] {
   const t = app.trend;
   const nums = t.map((p) => metricValue(p, metric));
   const max = Math.max(0, ...nums);
@@ -54,22 +54,19 @@ export function historyRows(app: AppData, metric: HistoryMetric, barWidth = 12):
   return t.map((p, i) => ({
     label: p.live ? "LIVE" : p.label,
     valueText: metricText(p, metric).padStart(w),
-    bar:
-      max <= 0 || nums[i] <= 0
-        ? "·".repeat(barWidth)
-        : "█".repeat(Math.max(1, Math.round((nums[i] / max) * barWidth))),
+    bar: ratioBar(nums[i], max, barWidth, ascii),
     live: p.live,
   }));
 }
 
-export function buildHistoryVm(app: AppData, metric: HistoryMetric): HistoryVm {
+export function buildHistoryVm(app: AppData, metric: HistoryMetric, ascii = false): HistoryVm {
   const daily = app.stats.dailySeries.slice(-14).map((d) => ({ date: d.date.slice(5), count: d.count }));
   const maxDaily = Math.max(1, ...daily.map((d) => d.count));
   return {
     metric,
-    rows: historyRows(app, metric),
+    rows: historyRows(app, metric, 12, ascii),
     daily,
-    dailySpark: sparkline(daily.map((d) => d.count), 24),
+    dailySpark: sparkline(daily.map((d) => d.count), 24, ascii),
     maxDaily,
   };
 }

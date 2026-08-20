@@ -1,106 +1,124 @@
-# 像素小鲸鱼 mascot 素材规格（WHALE ASSET SPEC v3）
+# 观察员小鲸鱼 mascot 规格（WHALE MASCOT SPEC v4）
 
-> DeepTrace TUI 右侧装饰是**一只 Q 版像素小鲸鱼 mascot**（不是人形、不是 🐋 emoji、
-> 不是 ASCII 棒人）。低矮、简洁、可爱，一眼是鲸鱼。
-> 6 张 `assets/whale/*.json` 由 `scripts/make-sprites.mjs` 生成：同一只鲸鱼、只换表情/装饰。
+> DeepTrace TUI 的 mascot 是**终端原生符号线稿**（terminal-native line-art），
+> 不是像素图、不是 🐋 emoji、不是 ASCII 棒人。
+> 唯一的真实来源是 `src/render/whale/mascot.ts` —— 没有素材文件、没有生成脚本、
+> 没有构建步骤。改外观就是改那一个文件里的字形常量。
 
-## 0. 角色设计（v3，超简洁小鲸鱼）
+## 0. 为什么是线稿而不是像素图
 
-| 设定 | 值 |
-| --- | --- |
-| 尺寸 | **16×12 逻辑像素**（终端 half-block 渲染 = 16 列 × 6 行，低矮装饰） |
-| 视角 | 正面 3/4：圆身体 + 可见翘尾，识别度优先 |
-| 身体 | 圆润椭圆 + 统一深蓝轮廓 + 浅蓝肚皮 |
-| 鲸鱼元素 | 右上翘尾（浅蓝叉尖）、左侧小鳍、头顶喷气孔 |
-| 装饰 | 喷泉 / ? / 感叹号 / 火苗 / zZ / 汗滴 —— 每状态一个，克制 |
-| 气质 | 冷静、深海感、DeepTrace 观察员，但可爱 |
+v3 曾用 6 张 16×12 像素 sprite + Unicode half-block 渲染。实测结论是它不适合这个产品：
 
-**调色（6 色，含透明共 7 键）**：
+- 16×12 逻辑像素经 half-block 压成 16 列 × 6 行后，在以文字为主的 TUI 里是
+  一整块高饱和色噪点 —— 抢主信息，并且必然在它周围制造大块留白；
+- half-block（▀ / ▄）属于 East Asian Ambiguous / Block Elements，
+  CJK locale 终端可能按 2 列渲染，宽度不可靠；
+- 六张 JSON 素材 + 生成器 + 预览器 + PNG 导出器，为一个装饰件引入了
+  完整的资产管线，与"确定性、只读、纯函数"的代码基调不符。
 
-| 键 | 色值 | 用途 |
-| --- | --- | --- |
-| `d` | `#0B1B4D` | 深蓝：轮廓 / 喷气孔 |
-| `b` | `#4D6BFE` | 中蓝（DeepSeek Blue）：身体 |
-| `l` | `#7B9BE8` | 浅蓝：肚皮 / 尾尖 / 鳍 / 汗滴 |
-| `w` | `#FFFFFF` | 白：眼高光 / 喷泉 / zZ / ? |
-| `e` | `#101828` | 近黑：眼睛 / 嘴 / 眉毛 |
-| `y` | `#F5A623` | 琥珀：感叹号 / 火苗 / 腮（仅 warning / angry，克制） |
+从 web 版继承下来的是**设计语言**而不是像素：正面头像构图、宽间距大眼、
+一个字形一种情绪 —— 与 whale-report 的四表情规格（呆萌 / 生气 / 困困 / 无语）
+一一对应，两端观感同源。
 
-## 1. 6 个状态
+## 1. 形态契约
 
-| 文件 | 状态 | 特征 | 与 core 规则的关系 |
-| --- | --- | --- | --- |
-| `idle.json` | 待机 | 平静 2px 嘴、圆眼双高光 | TUI 专用 UI 状态（数据未加载） |
-| `happy.json` | 开心 | 张嘴笑、头顶小喷泉 | `whaleMood() === "happy"` |
-| `thinking.json` | 思考 | 上视眼、小圆嘴、「?」气泡 | TUI 专用 UI 状态（加载/刷新） |
-| `warning.json` | 提醒 | 平眉、平嘴、汗滴 | `whaleMood() === "dazed"`（无语态） |
-| `angry.json` | 生气 | 外高内低斜眉、撇嘴、琥珀腮 + 小火苗 | `whaleMood() === "angry"`（仅红级危险操作） |
-| `sleepy.json` | 困困 | 闭眼线、O 嘴、z z | `whaleMood() === "sleepy"`（深夜活跃） |
-
-表情阈值**必须**继续由 `dsh-whale-report/core` 的 `whaleMood()` 决定（同一套规则），
-sprite 只负责"长什么样"。
-
-## 2. 终端渲染方式
-
-- 渲染器：`src/render/whale/render.ts` —— **Unicode half-block**（▀/▄），
-  每个终端格上下半格各一个颜色（truecolor / 256 降级由终端处理）；
-- no-color：按亮度映射 ░▒▓█ 单色剪影（轮廓/眼睛深、肚皮浅，剪影仍可辨）；
-- 尺寸约束：**16×12 到 18×14 之间，总高度不要更高**（TUI 右侧装饰，低矮优先）；
-- 极矮终端（内容 <14 行）自动只显示上半（头部）。
-
-## 3. 交付格式（二选一）
-
-### 方式 A：直接给 JSON（推荐，无需工具）
-
-```json
-{
-  "name": "idle",
-  "w": 16,
-  "h": 12,
-  "palette": { "d": "#0B1B4D", "b": "#4D6BFE", "l": "#7B9BE8", "w": "#FFFFFF", "e": "#101828", "y": "#F5A623" },
-  "grid": [
-    "................",
-    "................",
-    ".......dd....ll.",
-    "... (h 行字符串，每行必须恰好 w 个字符) ...",
-    "................"
-  ]
-}
+```
+ ╭───────╮        ← 头顶
+─┤ o _ o ├─       ← 胸鳍 + 眼 · 嘴 · 眼
+ ╰───────╯        ← 下颌
 ```
 
-- `grid` 行数必须 = `h`，每行字符数必须 = `w`；
-- 字符只能是 palette 键或 `.`（透明）；未知键会直接报错（有校验）；
-- 同一只鲸鱼只换表情：以 `idle` 为基础，只改眼睛/嘴/眉毛/头顶装饰。
+| 项 | 值 |
+| --- | --- |
+| 尺寸 | **3 行 × 11 列**（`MARK_HEIGHT` / `MARK_WIDTH`） |
+| 每行宽度 | `[10, 11, 10]`（`MARK_ROW_WIDTHS`，胸鳍在中行外突一列） |
+| 微章尺寸 | 单行 **9 列**（`TICK_WIDTH`） |
+| 竖线位置 | 固定第 1 / 9 列 |
+| 五官位置 | 固定第 3 / 5 / 7 列 —— 恒在轮廓之内 |
 
-### 方式 B：PNG → 转换
+**轮廓在所有状态下完全一致**，状态只改变眼睛字形、嘴字形和颜色。
+因此切换状态时 mascot 不跳动、不改变占位、不引起重排。
+这些宽度由 `tests/render.test.tsx` 钉死，改字形若破坏宽度会直接测试失败。
 
-- 格式：**透明背景 PNG**，16×12（严格像素画，不要插值）；
-- palette 限制：≤7 色（含透明），主色 #4D6BFE；
-- 提供转换脚本 `scripts/png-to-sprite.mjs`（Phase 2 交付，输入 PNG 输出 JSON）。
+## 2. 宽度安全（终端兼容性硬约束）
 
-## 4. 替换步骤
+| 部位 | 字符类 | 理由 |
+| --- | --- | --- |
+| 外框 | 单线 box-drawing `╭─╮╰╯┤├` | 与 chrome 结构线同一风险档，不额外引入风险 |
+| 五官 | **纯 ASCII** `o ^ - . > < _ w ~ ? z` | 任何终端 / locale / ambiguous 设置都恒为 1 格 |
+
+禁用字形：`●`、`‿`、`﹏`、`▀`、`▄` 及一切 East Asian Ambiguous / Wide 字符。
+
+`ascii=true`（`--ascii`，或 `TERM` 为 `dumb` / `linux` / 未设置时自动降级）
+整只降级为纯 ASCII，供缺字形终端使用：
+
+```
+ .-------.
+-| o _ o |-
+ '-------'
+```
+
+## 3. 六个状态
+
+状态阈值**必须**继续由 `dsh-whale-report/core` 的 `whaleMood()` 决定，
+`mascot.ts` 只负责"长什么样"。映射表是 `MOOD_TO_STATE` / `stateForMood()`。
+
+| 状态 | 眼 L | 眼 R | 嘴 | 中文状态词 | tone | 来源 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `idle` | `o` | `o` | `_` | 待机 | brand | TUI 自身 UI 状态（数据未加载） |
+| `happy` | `^` | `^` | `w` | 一切顺利 | signal | `whaleMood() === "happy"` |
+| `thinking` | `o` | `-` | `?` | 解析中 | brand | TUI 自身 UI 状态（加载 / 刷新） |
+| `warning` | `.` | `.` | `~` | 有需要留意 | warn | `whaleMood() === "dazed"`（无语态） |
+| `angry` | `>` | `<` | `^` | 有危险操作 | error | `whaleMood() === "angry"`（仅红级危险操作） |
+| `sleepy` | `-` | `-` | `z` | 夜间活跃 | muted | `whaleMood() === "sleepy"`（深夜活跃） |
+
+## 4. 颜色语义
+
+颜色**不是**唯一的状态通道 —— 每个状态都带中文状态词，
+无色终端（`--no-color`）里颜色失效而状态词仍在。
+
+线稿分三种角色，由 `src/render/whale/Whale.tsx` 的 `colorFor()` 解析成主题 token：
+
+| 角色 | 含义 | 取色规则 |
+| --- | --- | --- |
+| `body` | 外框轮廓 | tone 主色 |
+| `accent` | 胸鳍 | brand 档用中性 `userAccent`，其余跟随 tone |
+| `face` | 五官 | brand / muted 档用中性色；warn / error / signal 档跟随 tone |
+
+即"情绪落在五官上，而不是把整只染成警示色"。
+
+## 5. 尺寸档位（谁来决定显示哪种）
+
+由 `src/render/geometry.ts` 的 `layout.mascot` 决定，不在组件里判断：
+
+| 档位 | 触发条件 | 渲染 |
+| --- | --- | --- |
+| `mark` | 常规 / 高终端 | 3 行线稿 + 中文状态词（`<WhaleMark />`） |
+| `tick` | 矮终端 | 单行微章 `─┤ o _ o ├─ 待机`（`<WhaleTick />`） |
+| `none` | `bodyHeight < 16` | 不渲染 —— 行数要留给正事 |
+
+原则：**装饰 + 状态提示，不做主角。** 线稿用与 UI 结构线同一套笔画、
+与文本同一视觉重量；空间不够时 mascot 先让位，内容不让位。
+
+## 6. 修改方式
+
+改 `src/render/whale/mascot.ts` 里的 `STATES`（五官字形 / 状态词 / tone）
+或 `BOX` / `ASCII`（轮廓字形）。不需要动素材、不需要跑生成器。
 
 ```sh
-# 1. 把新素材放入 assets/whale/<name>.json（覆盖现有文件）
-# 2. 本地验证
-node bin/deeptrace.mjs --render overview --no-color
-pnpm test          # renderer 校验（validateSprite + 尺寸约束）自动检查全部 6 张
+# 终端预览六个状态（含 ascii 与 no-color 对照）
+pnpm exec tsx scripts/mascot-preview.mts
+
+# 宽度契约与降级校验
+pnpm test
 ```
 
-不需要改任何代码：loader 只按文件名加载；渲染器对尺寸无硬编码。
+## 7. 验收标准
 
-## 5. 素材生成与工具
-
-- `scripts/make-sprites.mjs`：mascot 生成器（v3 设计源，修改后重跑即可再生成 6 张）；
-- `scripts/whale-debug.mts`：结构化字符图调试（`pnpm exec tsx scripts/whale-debug.mts`）；
-- `scripts/whale-preview.mts`：终端 half-block 预览（`pnpm exec tsx scripts/whale-preview.mts`）；
-- `scripts/sprite-png.mjs`：JSON → PNG 大图（×10 + 棋盘透明底，输出 /tmp/whale-art/）。
-
-## 6. 验收标准
-
-1. 一眼是鲸鱼：圆身体 + 翘尾 + 喷气孔，无方头、无机器人感；
-2. 6 个状态一眼可辨（嘴/眼/眉 + 头顶装饰）；
-3. 16×6 终端格显示下轮廓清晰、无锯齿噪点；
-4. no-color 模式下剪影可辨识（靠明暗不是靠颜色）；
-5. 尺寸 16×12（≤18×14），低矮适合 TUI 右侧装饰；
-6. `pnpm test` 的 `validateSprite` 与尺寸约束通过。
+1. 3 行 × 11 列，每行宽度恒为 `[10, 11, 10]`；微章恒 9 列；
+2. 六个状态轮廓完全一致，仅五官字形与颜色不同 —— 切换不跳动；
+3. 五官全部为 ASCII；外框只用单线 box-drawing；无 ambiguous / wide 字符；
+4. `ascii=true` 时整只为纯 ASCII 且宽度不变；
+5. `--no-color` 下靠中文状态词仍能判断状态（不依赖颜色）；
+6. 矮终端降级为 tick、`bodyHeight < 16` 时消失，不挤压内容；
+7. `pnpm test` 的宽度契约与字符集测试通过。

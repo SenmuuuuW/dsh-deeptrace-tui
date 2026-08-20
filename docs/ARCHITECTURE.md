@@ -34,7 +34,7 @@ Frame（Ink 5 / React，纯展示，无副作用）
 | `src/render/layout.tsx` | Header / Footer / KPI / 分隔线（极简壳） | 全屏仅 1 条分隔线 |
 | `src/render/views/*` | 五视图 + Help 独立组件 | 纯展示，数据来自 vm |
 | `src/render/app.tsx` | DeepTraceApp：键盘导航、状态订阅、复制、低频 watch | 不虚构状态 |
-| `src/render/whale/` | 像素鲸鱼娘：sprite loader + half-block renderer + Ink 组件 | mood 与 core whaleMood 严格同源 |
+| `src/render/whale/` | 观察员小鲸鱼：`mascot.ts` 纯函数线稿（3×11，无素材文件）+ Ink 组件 | mood 与 core whaleMood 严格同源；五官纯 ASCII |
 | `src/cli.tsx` | CLI：交互 / 无头渲染 / 参数解析 | — |
 
 ## 3. 数据流（一次打开）

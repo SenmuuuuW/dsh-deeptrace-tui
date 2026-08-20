@@ -46,6 +46,8 @@ export const NO_COLOR_TOKENS: ThemeTokens = {
 
 export interface ResolvedTheme {
   color: boolean;
+  /** true = 结构线降级 ASCII（-|+），用于缺 box-drawing 字形的终端。 */
+  ascii: boolean;
   tokens: ThemeTokens;
 }
 
@@ -66,6 +68,18 @@ export function detectColorSupport(env: NodeJS.ProcessEnv = process.env, argv: r
   return true;
 }
 
-export function resolveTheme(color: boolean): ResolvedTheme {
-  return { color, tokens: color ? THEME : NO_COLOR_TOKENS };
+/**
+ * box-drawing 可用性探测。
+ * 与颜色是两件事：`--no-color` 只关颜色（截图/CI 仍要好看的结构线），
+ * 真正缺字形的是 TERM=dumb / linux console 这类终端。
+ */
+export function detectAsciiFallback(env: NodeJS.ProcessEnv = process.env, argv: readonly string[] = []): boolean {
+  if (argv.includes("--ascii")) return true;
+  const term = env.TERM;
+  if (term === "dumb" || term === undefined || term === "linux") return true;
+  return false;
+}
+
+export function resolveTheme(color: boolean, ascii = false): ResolvedTheme {
+  return { color, ascii, tokens: color ? THEME : NO_COLOR_TOKENS };
 }

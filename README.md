@@ -141,21 +141,31 @@ create_goal      100.0%       3
 宽屏（≥130 列）左列表右详情常显（profiler 式）；窄屏 Enter 展开会话详情（费用 / Tokens / 重试 / 风险），`c` 复制 Session ID——**不伪造跳转能力**（官方暂无跨应用"打开会话"机制，与 Web 版一致）。
 ## 小鲸鱼 mascot WHALE
 
-DeepTrace 的观察员 —— **超简洁像素小鲸鱼**（16×12 逻辑像素，终端里只有 16×6 格）：
-圆润身体 + 右上翘尾 + 小鳍 + 喷气孔，深蓝 / 中蓝 / 浅蓝 / 白，克制点缀琥珀。
+DeepTrace 的观察员 —— **终端原生符号线稿**（3 行 × 11 列，与文本同一视觉重量）：
+
+```
+ ╭───────╮
+─┤ o _ o ├─
+ ╰───────╯
+   待机
+```
+
+轮廓在所有状态下完全一致，状态只改变眼睛 / 嘴 / 颜色 —— 切换时不跳动、不改变占位。
 6 个状态与 `dsh-whale-report/core` 的 `whaleMood()` 规则严格同源：
 
-| sprite | 状态 | 关键特征 |
-| --- | --- | --- |
-| `idle` | 待机 | 平静小嘴、圆眼双高光 |
-| `happy` | 开心 | 张嘴笑、头顶小喷泉 |
-| `thinking` | 思考 | 上视眼、小圆嘴、「?」气泡 |
-| `warning` | 提醒 | 平眉、平嘴、汗滴（无语态，对应 core dazed） |
-| `angry` | 生气 | 斜眉、撇嘴、琥珀腮 + 小火苗 |
-| `sleepy` | 困困 | 闭眼线、O 嘴、z z |
+| 状态 | 字形 | 中文状态词 | 来源 |
+| --- | --- | --- | --- |
+| `idle` | `o _ o` | 待机 | TUI 自身 UI 状态（数据未加载） |
+| `happy` | `^ w ^` | 一切顺利 | core `happy` |
+| `thinking` | `o ? -` | 解析中 | TUI 自身 UI 状态（加载 / 刷新） |
+| `warning` | `. ~ .` | 有需要留意 | core `dazed`（无语态） |
+| `angry` | `> ^ <` | 有危险操作 | core `angry`（仅红级危险操作） |
+| `sleepy` | `- z -` | 夜间活跃 | core `sleepy`（深夜活跃） |
 
-渲染：Unicode half-block 双色（truecolor / 256 降级）+ no-color 亮度剪影；
-低矮装饰不抢内容，小终端自动隐藏 / 只显示头部。素材规格与替换方式见
+外框只用单线 box-drawing、五官一律纯 ASCII —— 无 ambiguous-width 风险；
+`--ascii` 下整只降级为 `-| o _ o |-`。矮终端降级为单行微章，
+`bodyHeight < 16` 时直接不渲染（行数留给正事）。状态是**颜色 + 中文状态词**双通道，
+`--no-color` 下仍可判断。完整规格见
 [docs/WHALE_ASSET_SPEC.md](docs/WHALE_ASSET_SPEC.md)。
 
 
@@ -203,6 +213,26 @@ DeepTrace 的观察员 —— **超简洁像素小鲸鱼**（16×12 逻辑像素
 英文只作小型 metadata（LIVE / TOOL HEALTH / DIAGNOSTICS），中文是主信息。
 
 快捷键遵循 dsh-tui 习惯（`?` 帮助、`q` 退出、列表导航），不与 DSH 核心快捷键冲突。
+
+### 终端兼容性与已知限制
+
+`--ascii` 把结构线、mascot、顶栏 / 状态栏全部降级为纯 ASCII，
+供缺 box-drawing 字形或 East Asian Ambiguous 判定为 2 列的终端使用。
+框架保证：任意尺寸下行宽 ≤ 终端列数、行数精确等于终端行数（单测覆盖 4 档尺寸 × 5 视图）。
+
+East Asian Ambiguous 字形（`·` `—` `→` `…` `≥` `×` 等）在把 ambiguous 判成 2 列的
+CJK locale 终端上会比测量宽度多占 1 列，足以让「刚好占满」的行溢出换行、把整帧顶掉一行。
+`--ascii` 档已把所有**宽度敏感**路径上的这类字形换成确定半宽的 ASCII：
+判据是「这段字符串会不会被量宽」—— `truncateWidth` / `padStartWidth` / `padEndWidth` /
+定宽列 / 右对齐 chrome / `displayWidth` 布局 / `wrap="truncate"` 都算。
+截断的省略号也按档位切换（默认 `…`，`--ascii` 用 `...`），
+预留空间取省略号的真实 display width，不写死 `max - 1`。
+
+验收口径（悲观审计：Unicode `ea=A` **全表** 167 段按 2 列计，4 档尺寸 × 5 视图）：
+`--ascii` 下 overflow = 0、ambiguous 字形 = 0。
+默认档仍按设计使用 box-drawing 与 ambiguous 装饰字形（它们本身就是 `ea=A`），
+在 ambiguous 判 2 列的终端上会换行 —— 这正是 `--ascii` 存在的意义，
+该类终端应使用 `--ascii`（或让 `TERM=dumb`/`linux` 自动降级）。
 
 ## 数据架构：DeepTrace Core 同源
 

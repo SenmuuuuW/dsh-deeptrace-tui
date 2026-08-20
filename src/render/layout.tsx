@@ -1,20 +1,20 @@
 /**
- * 布局壳：Header / Footer / KPI —— v2 极简版。
+ * 布局零件：Nav（状态栏导航）+ Kpi（总览四指标）。
+ *
+ * 顶栏 / 状态栏 / 分隔线已统一到 chrome.tsx，
+ * 这里只留仍被引用的两个零件 —— 原 Header / Footer / Rule / SectionTitle
+ * 已随 chrome 重构退役并删除，避免留下两套外壳。
  *
  * 颜色角色（统一，不做彩虹）：
  *   brand=蓝 → 身份/激活 · signal=cyan → 信息 · warn=琥珀 → 注意
  *   error=红 → 仅真危险 · muted=灰 → 元数据 · text=白 → 主内容
- *
- * 分隔线：全屏只有 Header 下 1 条；其余靠空白/缩进/颜色分层。
  */
 import { Box, Text } from "ink";
-import type { AppData } from "../data/report.js";
-import { periodShortOf } from "../vm/overview.js";
 import type { ResolvedTheme } from "./theme.js";
 import type { View } from "./Frame.js";
 
-export const NAV_ORDER: View[] = ["overview", "tools", "trace", "collab", "history"];
-export const NAV_SHORT: Record<View, string> = {
+const NAV_ORDER: View[] = ["overview", "tools", "trace", "collab", "history"];
+const NAV_SHORT: Record<View, string> = {
   overview: "总览",
   tools: "工具",
   trace: "会话",
@@ -22,84 +22,39 @@ export const NAV_SHORT: Record<View, string> = {
   history: "历史",
 };
 
-/** 分隔线（主题色；no-color 回退为 -）。 */
-export function Rule({ theme, width }: { theme: ResolvedTheme; width: number }): React.ReactNode {
-  return (
-    <Text color={theme.tokens.muted} dimColor>
-      {theme.color ? "─".repeat(Math.max(8, width)) : "-".repeat(Math.max(8, width))}
-    </Text>
-  );
-}
-
-/** Section 标题（小写灰字，正文由内容本身承担）。 */
-export function SectionTitle({ children }: { children: React.ReactNode }): React.ReactNode {
-  return <Text dimColor>{children}</Text>;
-}
-
-/** 头部：品牌 + ●LIVE（右侧），第二行周期。无 meta 堆叠。 */
-export function Header({
-  data, theme, width,
-}: {
-  data: AppData | null;
-  theme: ResolvedTheme;
-  width: number;
-}): React.ReactNode {
-  const t = theme.tokens;
-  const live = data?.live ?? false;
-  const period =
-    data === null
-      ? "读取会话存档…"
-      : `${data.periodLabel} · ${periodShortOf(data)}`;
-  return (
-    <Box flexDirection="column">
-      <Box justifyContent="space-between">
-        <Text color={t.brand} bold>
-          深迹 DEEPTRACE
-        </Text>
-        <Text color={live ? t.signal : t.muted} bold={live}>
-          {live ? "● LIVE" : "○ 周期"}
-        </Text>
-      </Box>
-      <Box justifyContent="space-between">
-        <Text color={t.muted}>{period}</Text>
-        <Text color={t.muted}>{"  "}</Text>
-      </Box>
-      <Rule theme={theme} width={width} />
-    </Box>
-  );
-}
-
-/** 页脚：只做导航 + 右侧时间/flash。状态类信息进 Help → DIAGNOSTICS。 */
-export function Footer({
-  view, theme, width, flash, updatedAt,
+/**
+ * 视图导航（状态栏左侧）。窄屏只留序号 + 当前视图名，
+ * 因为"我在哪一页"比"一共有哪几页"更重要。
+ */
+export function Nav({
+  view, theme, compact,
 }: {
   view: View;
   theme: ResolvedTheme;
-  width: number;
-  flash: string | null;
-  updatedAt: number | null;
+  compact: boolean;
 }): React.ReactNode {
   const t = theme.tokens;
-  const nav = NAV_ORDER.map((v) => {
-    const active = v === view;
+  if (compact) {
+    const i = NAV_ORDER.indexOf(view) + 1;
     return (
-      <Text key={v} color={active ? t.text : t.muted} bold={active}>
-        {active ? `[${NAV_ORDER.indexOf(v) + 1} ${NAV_SHORT[v]}]` : ` ${NAV_ORDER.indexOf(v) + 1} ${NAV_SHORT[v]} `}
+      <Text>
+        <Text color={t.text} bold>{`${i}/${NAV_ORDER.length} ${NAV_SHORT[view]}`}</Text>
+        <Text color={t.muted} dimColor>{" 1-5 切换"}</Text>
       </Text>
     );
-  });
-  const time = updatedAt !== null ? new Date(updatedAt).toTimeString().slice(0, 5) : "—";
-  const right = flash !== null ? flash : time;
-  const maxRight = Math.max(8, width - 42);
-  const shortRight = right.length > maxRight ? `${right.slice(0, maxRight - 1)}…` : right;
+  }
   return (
-    <Box justifyContent="space-between" marginTop={1}>
-      <Text dimColor>
-        {nav}
-        <Text dimColor> [?] 帮助</Text>
-      </Text>
-      <Text color={flash !== null ? t.signal : t.muted}>{shortRight}</Text>
-    </Box>
+    <Text>
+      {NAV_ORDER.map((v, i) => {
+        const active = v === view;
+        return (
+          <Text key={v} color={active ? t.text : t.muted} bold={active} dimColor={!active}>
+            {active ? `[${i + 1} ${NAV_SHORT[v]}]` : ` ${i + 1} ${NAV_SHORT[v]} `}
+          </Text>
+        );
+      })}
+      <Text color={t.muted} dimColor>{"  ? 帮助"}</Text>
+    </Text>
   );
 }
 

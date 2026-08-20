@@ -1,14 +1,12 @@
 /**
- * 主框架 v2（presentational 壳）：响应式档位计算 + 视图路由 + Header/Footer。
- * 纯展示：数据来自 AppData，无副作用。交互 App 与 headless render 共用。
+ * 主框架 v3（presentational 壳）：工作台骨架 + 视图路由。
  *
- * 响应式（3 档宽度 × 3 档高度，不做几十个断点）：
- *   COMPACT  <90  单列、无鲸鱼
- *   STANDARD 90-129  主内容 + 小鲸鱼
- *   WIDE     >=130  Trace 双栏 / Tools 正常工具双列
- *   LOW      <26 行  需要关注 Top 2、无鲸评、趋势精简
- *   NORMAL   26-39
- *   TALL     >=40
+ * 与 v2 的区别（这一版要解决的就是"左上角一点内容、右边一大片空白"）：
+ *   · 骨架由 chrome.Shell 提供，高度精确到行：顶栏 1 + 线 1 + 主体 N + 线 1 + 状态栏 1；
+ *   · 主体固定分成「主工作区」和「常驻诊断区」，视图切换不改变骨架位置；
+ *   · 所有响应式判断集中在 geometry.layoutOf()，视图只消费结果，不各自算断点。
+ *
+ * 纯展示：数据来自 AppData，无副作用。交互 App 与 headless render 共用。
  */
 import { Box, Text } from "ink";
 import type { AppData } from "../data/report.js";
@@ -17,15 +15,19 @@ import { buildToolsVm } from "../vm/tools.js";
 import { buildTraceVm } from "../vm/trace.js";
 import type { HistoryMetric } from "../vm/history.js";
 import type { ResolvedTheme } from "./theme.js";
-import { Header, Footer } from "./layout.js";
-import { WhaleFace } from "./whale/WhaleFace.js";
+import { Nav } from "./layout.js";
+import { Shell, TopBar, StatusBar } from "./chrome.js";
+import { layoutOf, type Layout } from "./geometry.js";
+import { DiagnosticRail } from "./rail.js";
+import { WhaleMark, WhaleTick } from "./whale/Whale.js";
 import { OverviewView } from "./views/overview.js";
 import { ToolsView } from "./views/tools.js";
 import { TraceView } from "./views/trace.js";
 import { CollabView } from "./views/collab.js";
 import { HistoryView } from "./views/history.js";
 import { HelpView } from "./views/help.js";
-import { sparkline } from "../vm/format.js";
+import { dashOf, sepOf, sparkline } from "../vm/format.js";
+import { periodShortOf } from "../vm/overview.js";
 
 export type View = "overview" | "tools" | "trace" | "collab" | "history";
 
@@ -69,60 +71,51 @@ export function windowSlice<T>(items: readonly T[], selected: number, max: numbe
   return { slice: items.slice(start, start + max), start, up: start > 0, down: start + max < items.length };
 }
 
-export type WidthBand = "compact" | "standard" | "wide";
-export type HeightBand = "low" | "normal" | "tall";
+// 档位判断已统一到 geometry.ts（单一真相源），这里只做转发以免调用方到处改 import。
+export { widthBandOf, heightBandOf, layoutOf } from "./geometry.js";
+export type { WidthBand, HeightBand, Layout } from "./geometry.js";
 
-export function widthBandOf(width: number): WidthBand {
-  if (width < 90) return "compact";
-  if (width < 130) return "standard";
-  return "wide";
-}
-
-export function heightBandOf(height: number): HeightBand {
-  if (height < 26) return "low";
-  if (height < 40) return "normal";
-  return "tall";
+/**
+ * 各视图的上下文快捷键提示（状态栏中段，窄屏丢弃）。
+ * 状态栏是全宽定位的，分隔符必须跟随 ascii 档 —— 见 sepOf 的说明。
+ */
+function viewHint(view: View, ascii: boolean): string {
+  const s = sepOf(ascii);
+  const HINT: Record<View, string> = {
+    overview: `Enter 展开鲸评 ${s} r 刷新`,
+    tools: `j/k 选工具 ${s} Enter 看错误码`,
+    trace: `j/k 选会话 ${s} Enter 详情 ${s} c 复制 ID`,
+    collab: "j/k 翻观察项",
+    history: "c/s/t/h 切换指标",
+  };
+  return HINT[view];
 }
 
 export function Frame({
   view, data, theme, width, height, selected, detail, noteOpen, helpOpen, loading, progress, error, flash, updatedAt, archiveInfo, historyMetric,
 }: FrameProps): React.ReactNode {
-  const wb = widthBandOf(width);
-  const hb = heightBandOf(height);
-  const low = hb === "low";
-  const contentHeight = Math.max(3, height - 5);
-  const showWhale = wb !== "compact" && view === "overview" && data !== null && !low;
+  const layout = layoutOf(width, height);
+  const low = layout.heightBand === "low";
+  const contentHeight = layout.bodyHeight;
+  // 诊断区已常驻鲸鱼，主区不再重复放，避免两条鲸鱼互相抢戏。
+  const showWhale = !layout.railShown && view === "overview" && data !== null && !low;
   const attentionMax = low ? 2 : 3;
 
   let content: React.ReactNode;
   if (helpOpen) {
-    content = <HelpView theme={theme} archiveInfo={archiveInfo} updatedAt={updatedAt} width={width} height={height} />;
+    content = <HelpView theme={theme} archiveInfo={archiveInfo} updatedAt={updatedAt} width={layout.mainWidth} height={contentHeight} />;
   } else if (error !== null) {
     content = (
       <Box flexDirection="column">
-        <Text color="#E5484D" bold>数据读取失败</Text>
+        <Text color={theme.tokens.error} bold>数据读取失败</Text>
         <Text>{error}</Text>
         <Text dimColor>检查 DSH_HOME 与存档路径后按 [r] 重试。</Text>
       </Box>
     );
   } else if (data === null) {
-    const p = progress;
-    const pct = p?.total !== undefined && p?.total > 0 ? ` ${Math.round(((p.done ?? 0) / p.total) * 100)}%` : "";
-    content = (
-      <Box flexDirection="row">
-        <Box flexDirection="column" flexGrow={1}>
-          <Text dimColor>{p?.message ?? "加载中…"}{pct}</Text>
-          {p?.total !== undefined && p.total > 0 && (
-            <Text>{sparkline(new Array(p.total).fill(1).map((_, i) => (i < (p.done ?? 0) ? 1 : 0)), 24)}</Text>
-          )}
-        </Box>
-        <Box marginLeft={2}>
-          <WhaleFace state="thinking" color={theme.color} />
-        </Box>
-      </Box>
-    );
+    content = <LoadingPane theme={theme} layout={layout} progress={progress} />;
   } else if (view === "overview") {
-    const vm = buildOverviewVm(data, attentionMax);
+    const vm = buildOverviewVm(data, attentionMax, theme.ascii);
     content = (
       <OverviewView
         vm={vm}
@@ -130,28 +123,95 @@ export function Frame({
         theme={theme}
         selected={selected}
         noteOpen={noteOpen}
-        width={width}
-        contentHeight={contentHeight}
+        layout={layout}
         showWhale={showWhale}
       />
     );
   } else if (view === "tools") {
-    const vm = buildToolsVm(data.stats);
-    content = <ToolsView vm={vm} selected={selected} theme={theme} wide={wb === "wide"} width={width} height={height} />;
+    const vm = buildToolsVm(data.stats, theme.ascii);
+    content = <ToolsView vm={vm} selected={selected} theme={theme} layout={layout} />;
   } else if (view === "trace") {
     const vm = buildTraceVm(data.stats);
-    content = <TraceView vm={vm} selected={selected} detail={detail} wide={wb !== "compact"} theme={theme} height={height} />;
+    content = <TraceView vm={vm} selected={selected} detail={detail} theme={theme} layout={layout} />;
   } else if (view === "collab") {
-    content = <CollabView data={data} selected={selected} theme={theme} />;
+    content = <CollabView data={data} selected={selected} theme={theme} layout={layout} />;
   } else {
-    content = <HistoryView data={data} metric={historyMetric} theme={theme} />;
+    content = <HistoryView data={data} metric={historyMetric} theme={theme} layout={layout} />;
   }
 
+  const rail =
+    data === null || helpOpen || error !== null
+      ? null
+      : (
+          <DiagnosticRail
+            theme={theme}
+            layout={layout}
+            data={data}
+            overview={buildOverviewVm(data, 3, theme.ascii)}
+            tools={buildToolsVm(data.stats, theme.ascii)}
+            busy={loading}
+          />
+        );
+  const time = updatedAt !== null ? new Date(updatedAt).toTimeString().slice(0, 5) : dashOf(theme.ascii);
   return (
-    <Box flexDirection="column" width={width}>
-      <Header data={data} theme={theme} width={width} />
-      <Box flexGrow={1}>{content}</Box>
-      <Footer view={view} theme={theme} width={width} flash={flash} updatedAt={updatedAt} />
+    <Shell
+      theme={theme}
+      layout={layout}
+      top={
+        <TopBar
+          theme={theme}
+          layout={layout}
+          periodText={data === null ? "读取会话存档…" : `${data.periodLabel} ${sepOf(theme.ascii)} ${periodShortOf(data)}`}
+          live={data?.live ?? false}
+        />
+      }
+      main={content}
+      rail={rail}
+      bottom={
+        <StatusBar
+          theme={theme}
+          layout={layout}
+          nav={<Nav view={view} theme={theme} compact={layout.widthBand === "compact"} />}
+          hint={helpOpen ? "Esc 关闭帮助" : viewHint(view, theme.ascii)}
+          right={flash ?? time}
+          flashActive={flash !== null}
+        />
+      }
+    />
+  );
+}
+
+/** 加载中：进度 + 观察员 thinking。占满主区，避免加载态出现巨大空白。 */
+function LoadingPane({
+  theme, layout, progress,
+}: {
+  theme: ResolvedTheme;
+  layout: Layout;
+  progress: { message: string; done?: number; total?: number } | null;
+}): React.ReactNode {
+  const p = progress;
+  const pct = p?.total !== undefined && p.total > 0 ? ` ${Math.round(((p.done ?? 0) / p.total) * 100)}%` : "";
+  const barWidth = Math.max(8, Math.min(32, layout.mainWidth - 4));
+  return (
+    <Box flexDirection="column" height={layout.bodyHeight} justifyContent="center">
+      <Text color={theme.tokens.muted}>
+        {"  "}
+        {p?.message ?? "加载中…"}
+        {pct}
+      </Text>
+      {p?.total !== undefined && p.total > 0 ? (
+        <Text color={theme.tokens.brand}>
+          {"  "}
+          {sparkline(new Array(p.total).fill(1).map((_, i) => (i < (p.done ?? 0) ? 1 : 0)), barWidth, theme.ascii)}
+        </Text>
+      ) : null}
+      <Box marginTop={1} flexDirection="column">
+        {layout.mascot === "mark" ? (
+          <WhaleMark state="thinking" theme={theme} />
+        ) : layout.mascot === "tick" ? (
+          <WhaleTick state="thinking" theme={theme} />
+        ) : null}
+      </Box>
     </Box>
   );
 }

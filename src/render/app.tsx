@@ -4,14 +4,16 @@
  * 历史页：c/s/t/h 切换指标（页面局部，不与其他页冲突）。
  */
 import { useInput } from "ink";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTerminalDimensions } from "./dimensions.js";
 import { copyToClipboard } from "../clipboard.js";
 import { Controller } from "../controller.js";
 import type { ReportPreset } from "../core/index.js";
 import { Frame, widthBandOf, heightBandOf, type View } from "./Frame.js";
+import { clampSelection, moveSelection } from "./geometry.js";
 import type { ResolvedTheme } from "./theme.js";
 import { attentionOf } from "../vm/overview.js";
+import { buildToolsVm } from "../vm/tools.js";
 import type { HistoryMetric } from "../vm/history.js";
 
 export interface AppProps {
@@ -84,16 +86,34 @@ export function DeepTraceApp({ dshHome, preset, theme, watchSec = 0, width, heig
   };
 
   const overviewCount = snap.data === null ? 0 : attentionOf(snap.data.insights, low ? 2 : 3).length + 1;
-  const toolsCount = snap.data?.stats.toolHealth.length ?? 0;
+  /**
+   * 工具页可选条目 = tiers.flat 的长度，与屏幕顺序同一真相源。
+   * 不用 stats.toolHealth.length —— 那是数据层顺序，一旦视图分档/过滤就会与高亮错位。
+   */
+  const toolsFlat = useMemo(
+    () => (snap.data === null ? [] : buildToolsVm(snap.data.stats).tiers.flat),
+    [snap.data],
+  );
+  const toolsCount = toolsFlat.length;
   const traceCount = snap.data?.stats.sessionsDetail.length ?? 0;
 
-  const itemCount = (): number => {
+  const itemCount = useCallback((): number => {
     if (view === "overview") return overviewCount;
     if (view === "tools") return toolsCount;
     if (view === "trace") return traceCount;
     if (view === "collab") return Math.max(1, snap.data?.collab.length ?? 0);
     return 1;
-  };
+  }, [view, overviewCount, toolsCount, traceCount, snap.data]);
+
+  /**
+   * 条目数变化（首次加载 / r 刷新 / 切档改变 overview 的 Top N）后把 selected 夹回合法区间。
+   * 不夹的话：刷新后条目变少时 selected 会指向不存在的条目，界面上没有任何高亮，
+   * 而且要等用户按一次 j/k 才靠取模自愈。
+   */
+  const count = itemCount();
+  useEffect(() => {
+    if (count > 0 && selected >= count) setSelected(clampSelection(selected, count));
+  }, [count, selected]);
 
   useInput((input, key) => {
     if (key.ctrl && input === "c") {
@@ -111,10 +131,10 @@ export function DeepTraceApp({ dshHome, preset, theme, watchSec = 0, width, heig
       if (input === "?" || input === "q") setHelpOpen(false);
       return;
     }
-    const count = itemCount();
     const move = (delta: number): void => {
       if (count <= 0) return;
-      setSelected((s) => (s + delta + count) % count);
+      // 实现见 geometry.moveSelection（纯函数，与测试共用同一实现）。
+      setSelected((s) => moveSelection(s, delta, count));
     };
     if (input === "j" || key.downArrow) move(1);
     else if (input === "k" || key.upArrow) move(-1);
